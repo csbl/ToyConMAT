@@ -1,0 +1,6 @@
+%initCobraToolbox
+
+model = createModel();
+
+
+
