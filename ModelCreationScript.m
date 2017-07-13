@@ -45,7 +45,7 @@ model.genes = geneNames;
 model.metNames = {'glucose','lactate','O2','H20','CO2','ADP','Pi','ATP','H','H'}';
 %set objective reaction which will be optimized
 model = changeObjective(model,'R4');
-model.c = model.c'
+model.c = model.c';
 %save model
 save('toycon1.mat','model');
 

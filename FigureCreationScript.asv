@@ -101,15 +101,15 @@ disp(toycon1_rxn_info)
 %% make S matrix pdf
 
 pos = smat > 0;
-temp = find(pos == 1)
-ycoord = abs(numMet-mod(temp,numMet));
-xcoord = floor(temp./numMet);
+temp = find(pos == 1);
+ycoord = temp./numMet;
+xcoord = mod(temp,numMet);
 labels = smat(pos);
-color = ones(length(xcoord),1);
-neg = smat < 0;
+color = ones(length(ycoord),1);
+neg = smat < 0
 temp = find(neg == 1);
-xcoord = floor([xcoord ; temp./numMet]);
-ycoord = mod([ycoord ; abs(numMet-mod(temp,numMet))],numMet);
+ycoord = floor([xcoord ; temp./numMet])+1;
+ycoord = [ycoord ; mod(temp,numMet)];
 labels = [labels ; smat(neg)];
 color = [color;ones(length(temp),1)./2];
 
