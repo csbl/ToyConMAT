@@ -125,7 +125,7 @@ pos = get(fig,'Position'); %https://www.mathworks.com/matlabcentral/answers/1298
 set(fig,'PaperPositionMode','Auto','PaperUnits','Inches','PaperSize',[pos(3), pos(4)])
 
 saveas(fig,'toycon1_smatrix','pdf')%save as pdf
-%%      Perform flux variabilitiy analysis with percentage of objective function
+%%      Perform flux variabilitiy analysis with percentage of objective function %%%%%%%%
 
 fva_pct_result = ef_tbl_fva(0,model,toycon1_rxn_info,0);%perform initial fva
 for i = 1:20
@@ -142,3 +142,110 @@ fclose(file);%close file
 
 %%
 %Plot percentage
+fig = figure;
+j = 1;
+for rx = ["R1","R2"] %reactions to plot
+    subplot(1,2,j)
+    map = [.2,.2,.2;0,0,1;1,0,0];%make color map
+    colormap(map);%apply color map
+    k = strcmp(char(fva_pct_result.rxn_id) ,rx); %extract indexes for matching reactions
+    xcoordl = fva_pct_result.fva_lb(k) ; %gather bounds for x coordinates
+    xcoordu = fva_pct_result.fva_ub(k) ;
+    ycoord = fva_pct_result.fva_pct(k); %gather pct for y coordinates
+    color = coloring(fva_pct_result.fva_on(k),fva_pct_result.fva_req(k)); %make coloring based on fva_req and fva_off
+    scatter(xcoordu,ycoord,[100],color,'filled','d') %Plot points
+    hold on
+    scatter(xcoordl,ycoord,[100],color,'filled','s')
+    for i = 1:length(ycoord)
+        switch color(i)
+            case 1
+                temp = 'red';
+            case 0
+                temp = 'black';
+            case .5
+                temp = 'cyan';
+        end
+        line([xcoordl(i),xcoordu(i)],[ycoord(i),ycoord(i)],'color',temp) %Draw connecting lines
+    end
+    j = j +1;
+    xlabel('Units of Flux Through Reaction')
+    ylabel('Required Flux Through Reaction')%label
+    xlim([0,2])  %set xaxis limits
+    temp = fva_pct_result.rxn_name(k);
+    t = title(string(temp(1)));
+    pos = get(t,'Position');
+    pos(2) = pos(2) + 3;
+    set(t,'Position',pos);
+    grid on;
+end
+%save figure
+set(fig,'Units','Inches');
+pos = get(fig,'Position'); %https://www.mathworks.com/matlabcentral/answers/12987-how-to-save-a-matlab-graphic-in-a-right-size-pdf
+set(fig,'PaperPositionMode','Auto','PaperUnits','Inches','PaperSize',[pos(3), pos(4)]) 
+saveas(fig,'toycon1_fva_percentage','pdf')
+
+%%
+% Peform FVA again but with ATP increments this time
+fva_inc_result = ef_tbl_fva(0,model,toycon1_rxn_info,0);%perform initial fva
+for i = 1:16
+   fva_inc_result = ef_tbl_fva(100*i/16,model,fva_inc_result,1); %perform for all increments
+end
+
+file = fopen('toycon1_fva_result_increment.txt','w');%open file
+fprintf(file,'rxn_id fva_lb fva_ub rxn_name lb ub rxn_formula fva_pct fva_req fva_on\n')%print headers
+fprintf(file,'%s %s %s %s %s %s %s %s %s %s\n',[string(fva_inc_result.rxn_id),string(fva_inc_result.fva_lb),...%print file
+    string(fva_inc_result.fva_ub),string(fva_inc_result.rxn_name),string(fva_inc_result.lb),string(fva_inc_result.ub),...
+    string(fva_inc_result.rxn_formula),string(fva_inc_result.fva_pct),string(fva_inc_result.fva_req),string(fva_inc_result.fva_on)]')
+
+fclose(file);%close file
+
+%%
+%Plot increment
+fig = figure;
+j = 1;
+for rx = ["R1","R2"] %reactions to plot
+    subplot(1,2,j)
+    map = [.2,.2,.2;0,0,1;1,0,0];%make color map
+    colormap(map);%apply color map
+    k = strcmp(char(fva_inc_result.rxn_id) ,rx); %extract indexes for matching reactions
+    xcoordl = fva_inc_result.fva_lb(k) ; %gather bounds for x coordinates
+    xcoordu = fva_inc_result.fva_ub(k) ;
+    ycoord = fva_inc_result.fva_pct(k).*32/100; %gather pct for y coordinates
+    color = coloring(fva_inc_result.fva_on(k),fva_inc_result.fva_req(k)); %make coloring based on fva_req and fva_off
+    scatter(xcoordu,ycoord,[100],color,'filled','d') %Plot points
+    hold on
+    scatter(xcoordl,ycoord,[100],color,'filled','s')
+    for i = 1:length(ycoord)
+        switch color(i)
+            case 1
+                temp = 'red';
+            case 0
+                temp = 'black';
+            case .5
+                temp = 'cyan';
+        end
+        line([xcoordl(i),xcoordu(i)],[ycoord(i),ycoord(i)],'color',temp) %Draw connecting lines
+    end
+    j = j +1;
+    xlabel('Units of Flux Through Reaction')
+    ylabel('Required # of ATP produced')%label
+    xlim([0,2])  %set xaxis limits
+    temp = fva_inc_result.rxn_name(k);
+    t = title(string(temp(1)));
+    pos = get(t,'Position');
+    pos(2) = pos(2) + 1;
+    set(t,'Position',pos);
+    grid on;
+end
+%save figure
+set(fig,'Units','Inches');
+pos = get(fig,'Position'); %https://www.mathworks.com/matlabcentral/answers/12987-how-to-save-a-matlab-graphic-in-a-right-size-pdf
+set(fig,'PaperPositionMode','Auto','PaperUnits','Inches','PaperSize',[pos(3), pos(4)]) 
+saveas(fig,'toycon1_fva_increment','pdf')
+%%%%%%%Perform Single Gene Deletions %%%%%%
+%%
+model = buildRxnGeneMat(model);
+[~,~,~,~,~,sol] = singleGeneDeletion(model);
+sol = sol(length(sol(:,1)),:)
+model.genes'
+
