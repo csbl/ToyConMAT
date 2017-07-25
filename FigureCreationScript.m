@@ -2,12 +2,9 @@
 clear all
 load toycon1.mat; %load model
 changeCobraSolver('gurobi'); %change solver (change to whatever solver you are using)
-%%% TO MAKE FIGURES THE PACKAGE gramm and struct2csv must be added to the matlab path. The
+%%% TO MAKE FIGURES THE PACKAGE gramm must be added to the matlab path. The
 %%% directory can be cloned from https://github.com/piermorel/gramm.git.
-%%% Documetation is available with the command doc gramm. For struct2csv,
-%%% documentation and download is available at
-%%% https://www.mathworks.com/matlabcentral/fileexchange/34889-struct2csv.
-%%% The foler must also be added to the path.
+%%% Documetation is available with the command doc gramm. 
 %%
 toycon1_rxn_decompositon = struct(); %create structure
 smat = full(model.S)  %grab smatrix
@@ -99,19 +96,49 @@ toycon1_rxn_info.rxn_formula = reactForm'; %assign reaction formula fields
 disp(toycon1_rxn_info)
 
 %% make S matrix pdf
+fig = figure
+[Posrow,Poscol] = find(smat < 0 );%find negative coefficient matrix indices
+ycoord = numMet - Posrow; %transform to xy coordinates
+xcoord = numReact - Poscol;
+labels = string(smat(smat < 0)); %make coefficent labels
+labels = char(labels);
+histogram2(xcoord,ycoord,'DisplayStyle','tile','ShowEmptyBins','off');%plot negative coefficient values in histogram
+hold on;
+text(xcoord,ycoord,labels,'color','white');%add labels
+[Posrow,Poscol] = find(smat > 0);%repeat for positive coefficients
+ycoord = numMet - Posrow;
+xcoord = numReact - Poscol;
+labels = char(string(smat(smat > 0)));
+histogram2([xcoord;xcoord],[ycoord;ycoord],'DisplayStyle','tile','ShowEmptyBins','off');
+text(xcoord,ycoord,labels,'color','white');
+map = [1,1,0;0,0,1;1,0,0];%make color map
+colormap(map);%apply color map
+xticklabels(flip(model.rxnNames,1))%create xaxis tick labels
+xtickangle(45); %rotate labels
+for x = 1:numMet
+    temp = char(model.mets{x}) ;
+    metCompartments{x} = temp(length(temp)-2:length(temp));%create ylabels
+end
+yticklabels(strcat(flip(model.metNames),flip(metCompartments')))%add y tick labels
+set(fig,'Units','Inches');
+pos = get(fig,'Position'); %https://www.mathworks.com/matlabcentral/answers/12987-how-to-save-a-matlab-graphic-in-a-right-size-pdf
+set(fig,'PaperPositionMode','Auto','PaperUnits','Inches','PaperSize',[pos(3), pos(4)])
 
-pos = smat > 0;
-temp = find(pos == 1)
-ycoord = abs(numMet-mod(temp,numMet));
-xcoord = floor(temp./numMet);
-labels = smat(pos);
-color = ones(length(xcoord),1);
-neg = smat < 0;
-temp = find(neg == 1);
-xcoord = floor([xcoord ; temp./numMet]);
-ycoord = mod([ycoord ; abs(numMet-mod(temp,numMet))],numMet);
-labels = [labels ; smat(neg)];
-color = [color;ones(length(temp),1)./2];
+saveas(fig,'toycon1_smatrix','pdf')%save as pdf
+%%      Perform flux variabilitiy analysis with percentage of objective function
 
+fva_pct_result = ef_tbl_fva(0,model,toycon1_rxn_info,0);%perform initial fva
+for i = 1:20
+   fva_pct_result = ef_tbl_fva(i*5,model,fva_pct_result,1); %perform for all percentages
+end
 
-h = histogram2(xcoord,ycoord,'DisplayStyle','tile','ShowEmptyBins','on')
+file = fopen('toycon1_fva_result_percentage.txt','w');%open file
+fprintf(file,'rxn_id fva_lb fva_ub rxn_name lb ub rxn_formula fva_pct fva_req fva_on\n')%print headers
+fprintf(file,'%s %s %s %s %s %s %s %s %s %s\n',[string(fva_pct_result.rxn_id),string(fva_pct_result.fva_lb),...%print file
+    string(fva_pct_result.fva_ub),string(fva_pct_result.rxn_name),string(fva_pct_result.lb),string(fva_pct_result.ub),...
+    string(fva_pct_result.rxn_formula),string(fva_pct_result.fva_pct),string(fva_pct_result.fva_req),string(fva_pct_result.fva_on)]')
+
+fclose(file);%close file
+
+%%
+%Plot percentage
