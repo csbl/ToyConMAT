@@ -1,10 +1,9 @@
 %%
 clear all
+close all
 load toycon1.mat; %load model
 changeCobraSolver('gurobi'); %change solver (change to whatever solver you are using)
-%%% TO MAKE FIGURES THE PACKAGE gramm must be added to the matlab path. The
-%%% directory can be cloned from https://github.com/piermorel/gramm.git.
-%%% Documetation is available with the command doc gramm. 
+
 %%
 toycon1_rxn_decompositon = struct(); %create structure
 smat = full(model.S)  %grab smatrix
@@ -94,6 +93,10 @@ for i = 1 :numReact
 end
 toycon1_rxn_info.rxn_formula = reactForm'; %assign reaction formula fields
 disp(toycon1_rxn_info)
+file = fopen('toycon1_rxn_info.txt','w');
+fprintf(file,'%s %s %s %s %s\n',[string(toycon1_rxn_info.rxn_id),string(toycon1_rxn_info.rxn_name),string(toycon1_rxn_info.lb),string(toycon1_rxn_info.ub),...
+    string(toycon1_rxn_info.rxn_formula)]');
+fclose(file);
 
 %% make S matrix pdf
 fig = figure
@@ -131,7 +134,7 @@ fva_pct_result = ef_tbl_fva(0,model,toycon1_rxn_info,0);%perform initial fva
 for i = 1:20
    fva_pct_result = ef_tbl_fva(i*5,model,fva_pct_result,1); %perform for all percentages
 end
-
+disp(fva_pct_result)
 file = fopen('toycon1_fva_result_percentage.txt','w');%open file
 fprintf(file,'rxn_id fva_lb fva_ub rxn_name lb ub rxn_formula fva_pct fva_req fva_on\n')%print headers
 fprintf(file,'%s %s %s %s %s %s %s %s %s %s\n',[string(fva_pct_result.rxn_id),string(fva_pct_result.fva_lb),...%print file
@@ -190,7 +193,7 @@ fva_inc_result = ef_tbl_fva(0,model,toycon1_rxn_info,0);%perform initial fva
 for i = 1:16
    fva_inc_result = ef_tbl_fva(100*i/16,model,fva_inc_result,1); %perform for all increments
 end
-
+disp(fva_inc_result)
 file = fopen('toycon1_fva_result_increment.txt','w');%open file
 fprintf(file,'rxn_id fva_lb fva_ub rxn_name lb ub rxn_formula fva_pct fva_req fva_on\n')%print headers
 fprintf(file,'%s %s %s %s %s %s %s %s %s %s\n',[string(fva_inc_result.rxn_id),string(fva_inc_result.fva_lb),...%print file
@@ -242,10 +245,146 @@ set(fig,'Units','Inches');
 pos = get(fig,'Position'); %https://www.mathworks.com/matlabcentral/answers/12987-how-to-save-a-matlab-graphic-in-a-right-size-pdf
 set(fig,'PaperPositionMode','Auto','PaperUnits','Inches','PaperSize',[pos(3), pos(4)]) 
 saveas(fig,'toycon1_fva_increment','pdf')
+%%
+% Create figure for all reactions
+fig = figure;
+j = 1;
+rxnlist = string(model.rxns);
+for rx = 1:length(rxnlist) %reactions to plot
+    ax1 = subplot(3,3,j);
+    k = strcmp(char(fva_inc_result.rxn_id) ,rxnlist(rx)); %extract indexes for matching reactions
+    xcoordl = fva_inc_result.fva_lb(k) ; %gather bounds for x coordinates
+    xcoordu = fva_inc_result.fva_ub(k) ;
+    ycoord = fva_inc_result.fva_pct(k).*32/100; %gather pct for y coordinates
+    color = coloring(fva_inc_result.fva_on(k),fva_inc_result.fva_req(k)); %make coloring based on fva_req and fva_off
+    if max(color) ~= 10
+        disp('changed')
+        map = [0,0,0;0,1,0;0,0,1];%make color map    
+    else
+        map = [0,0,0;0,0,1;1,0,0];%make color map    
+    end
+    colormap(ax1,map);%apply color map 
+    scatter(xcoordu,ycoord,25,color,'filled','d') %Plot points
+    hold on
+    scatter(xcoordl,ycoord,25,color,'filled','s')
+    for i = 1:length(ycoord)
+        switch color(i)
+            case 10
+                temp = 'red';
+            case 0
+                temp = 'black';
+            case 5
+                temp = 'blue';
+        end
+        line([xcoordl(i),xcoordu(i)],[ycoord(i),ycoord(i)],'color',temp) %Draw connecting lines
+    end
+    j = j +1;
+    xlim([min(xcoordl),max(xcoordu)])
+    ylim([0,max(ycoord)])
+    temp = fva_inc_result.rxn_name(k);
+    t = title(string(temp(1)));
+    pos = get(t,'Position');
+    pos(2) = pos(2) + .5;
+    set(t,'Position',pos);
+    grid on;
+end
+%save figure
+set(fig,'Units','Inches');
+pos = get(fig,'Position'); %https://www.mathworks.com/matlabcentral/answers/12987-how-to-save-a-matlab-graphic-in-a-right-size-pdf
+set(fig,'PaperPositionMode','Auto','PaperUnits','Inches','PaperSize',[pos(3), pos(4)]) 
+saveas(fig,'toycon1_fva_increment_all','pdf')
+
+
 %%%%%%%Perform Single Gene Deletions %%%%%%
 %%
-model = buildRxnGeneMat(model);
-[~,~,~,~,~,sol] = singleGeneDeletion(model);
-sol = sol(length(sol(:,1)),:)
-model.genes'
+model = buildRxnGeneMat(model);%create RxnGene relationship field in model
+[~,~,~,~,~,sol] = singleGeneDeletion(model);%perform single gene simulation
+toycon1_gene_ko = struct(toycon1_rxn_info); %create new data struct
+toycon1_gene_ko.gene_id = model.grRules; % add gene_ids
+dele = zeros(length(model.grRules),1);
+for i =1:length(model.grRules)
+    k = find(strcmp(model.grRules,model.genes(i)));
+    dele(k) = sol(length(sol(:,1)),i);
+end
+toycon1_gene_ko.gene_ko_atp =dele; %add result of simulation (Flux through objective function)
+disp(toycon1_gene_ko)
+file = fopen('toycon1_gene_ko_screen.txt','w');%output result
+fprintf(file,'gene_id gene_ko_atp rxn_id rxn_name lb ub rxn_formula\n')
+fprintf(file,'%s %s %s %s %s %s %s\n',[string(toycon1_gene_ko.gene_id),string(toycon1_gene_ko.gene_ko_atp),string(toycon1_gene_ko.rxn_id),string(toycon1_gene_ko.rxn_name),string(toycon1_gene_ko.lb),string(toycon1_gene_ko.ub),...
+    string(toycon1_gene_ko.rxn_formula)]');
+fclose(file);
+%%
+%%%%%%Perform double gene deletion simulation%%%%%%%%%%%%%%%%%%%%%
+[~,res,~] = doubleGeneDeletion(model);%perform double gene deletion
+rowVal = model.genes;%gather row and col gene names
+colVal = model.genes;
+[numRows,numCols] = size(res);
+z = 1;
+for i = 1:numRows
+    for j = 1:i-1
+        gene1(z) = rowVal(i);
+        gene2(z) = rowVal(j);%get corresponding genes deleted
+        gene12(z) = strcat(gene1(z),'_',gene2(z));
+        k1 = find(strcmp(model.grRules,gene1(z)));%find matching reactions
+        k2 = find(strcmp(model.grRules,gene2(z)));
+        rxnID1(z) = model.rxns(k1);
+        rxnID2(z) = model.rxns(k2);%get matching reaction IDS and names
+        rxnID12(z) = strcat(rxnID1(z),'_',rxnID2(z));
+        rxnN1(z) = model.rxnNames(k1);
+        rxnN2(z) = model.rxnNames(k2);
+        rxnN12(z) = strcat(rxnN1(z), ' / ' , rxnN2(z));
+        atp1(z) = toycon1_gene_ko.gene_ko_atp(k1);%get corresponding single gene deletion atp result
+        atp2(z) = toycon1_gene_ko.gene_ko_atp(k2);
+        atp12(z) = res(i,j);%get double deletion result
+        z = z + 1;
+    end
+end
 
+gene_ko2_rxns = struct();%add vectors to structure
+gene_ko2_rxns.genes = gene12;
+gene_ko2_rxns.rxn1 = rxnID1;
+gene_ko2_rxns.rxn2 = rxnID2;
+gene_ko2_rxns.name1 = rxnN1;
+gene_ko2_rxns.name2 = rxnN2;
+gene_ko2_rxns.rxns = rxnID12;
+gene_ko2_rxns.names = rxnN12;
+disp(gene_ko2_rxns)
+file = fopen('toycon1_gene_2ko_rxns.txt','w');%output result
+fprintf(file,'genes rxn1 rxn2 name1 name2 rxns names\n');
+fprintf(file,'%s %s %s %s %s %s %s\n',[string(gene_ko2_rxns.genes);string(gene_ko2_rxns.rxn1);...
+    string(gene_ko2_rxns.rxn2);string(gene_ko2_rxns.name1);string(gene_ko2_rxns.name2);string(gene_ko2_rxns.rxns);string(gene_ko2_rxns.names)]);
+fclose(file);
+
+gene_ko2_tbl = struct(gene_ko2_rxns);%create new structure from existing
+gene_ko2_tbl.atp = atp12;%add atp results into structure
+gene_ko2_tbl.atp1 = atp1;
+gene_ko2_tbl.atp2 = atp2;
+gene_ko2_tbl.atp12 = atp12;
+
+disp(gene_ko2_tbl)
+
+file = fopen('toycon1_gene_2ko_tbl.txt','w');%output result
+fprintf(file,'genes atp rxn1 rxn2 name1 name2 rxns names atp1 atp2 atp12\n');
+fprintf(file,'%s %s %s %s %s %s %s %s %s %s %s\n',[string(gene_ko2_tbl.genes);string(gene_ko2_tbl.atp);string(gene_ko2_tbl.rxn1);...
+    string(gene_ko2_tbl.rxn2);string(gene_ko2_tbl.name1);string(gene_ko2_tbl.name2);string(gene_ko2_tbl.rxns);string(gene_ko2_tbl.names);...
+    string(gene_ko2_tbl.atp1);string(gene_ko2_tbl.atp2);string(gene_ko2_tbl.atp12)]);
+fclose(file);
+
+%%
+%find double gene deletions where the double deletion causes a larger
+%negative effect on growth than both of the constituient single deletions
+cond1 = (gene_ko2_tbl.atp1 - gene_ko2_tbl.atp12) > 0;
+cond2 = (gene_ko2_tbl.atp2 - gene_ko2_tbl.atp12) > 0;%create logical matrices for the two conditons
+z= 1;
+for i =1 : length(cond1)
+   if cond1(i) && cond2(i)%find indices that match both conditions
+       indices(z) = i;
+       z = z  + 1;
+   end
+end
+fprintf('genes atp rxn1 rxn2 name1 name2 rxns names atp1 atp2 atp12\n'); %extract filtered results
+for i = indices
+   fprintf('%s %s %s %s %s %s %s %s %s %s %s\n',[string(gene_ko2_tbl.genes(i));string(gene_ko2_tbl.atp(i));string(gene_ko2_tbl.rxn1(i));...
+    string(gene_ko2_tbl.rxn2(i));string(gene_ko2_tbl.name1(i));string(gene_ko2_tbl.name2(i));string(gene_ko2_tbl.rxns(i));string(gene_ko2_tbl.names(i));...
+    string(gene_ko2_tbl.atp1(i));string(gene_ko2_tbl.atp2(i));string(gene_ko2_tbl.atp12(i))]);  
+end
