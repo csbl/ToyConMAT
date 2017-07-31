@@ -99,7 +99,11 @@ fprintf(file,'%s %s %s %s %s\n',[string(toycon1_rxn_info.rxn_id),string(toycon1_
 fclose(file);
 
 %% make S matrix pdf
-fig = figure
+fig = figure;
+smat = fliplr(smat)
+temp = smat;
+smat(:,6:9) = temp(:,1:4);
+smat(:,1:5) = temp(:,5:9);
 [Posrow,Poscol] = find(smat < 0 );%find negative coefficient matrix indices
 ycoord = numMet - Posrow; %transform to xy coordinates
 xcoord = numReact - Poscol;
@@ -116,7 +120,12 @@ histogram2([xcoord;xcoord],[ycoord;ycoord],'DisplayStyle','tile','ShowEmptyBins'
 text(xcoord,ycoord,labels,'color','white');
 map = [1,1,0;0,0,1;1,0,0];%make color map
 colormap(map);%apply color map
-xticklabels(flip(model.rxnNames,1))%create xaxis tick labels
+xlabels = flip(model.rxnNames);
+temp = xlabels;
+xlabels(6:9) = temp(1:4);
+xlabels(1:5) = temp(5:9);
+xlabels = flip(xlabels)
+xticklabels(xlabels)%create xaxis tick labels
 xtickangle(45); %rotate labels
 for x = 1:numMet
     temp = char(model.mets{x}) ;
@@ -128,6 +137,7 @@ pos = get(fig,'Position'); %https://www.mathworks.com/matlabcentral/answers/1298
 set(fig,'PaperPositionMode','Auto','PaperUnits','Inches','PaperSize',[pos(3), pos(4)])
 
 saveas(fig,'toycon1_smatrix','pdf')%save as pdf
+smat = fliplr(smat);
 %%      Perform flux variabilitiy analysis with percentage of objective function %%%%%%%%
 
 fva_pct_result = ef_tbl_fva(0,model,toycon1_rxn_info,0);%perform initial fva
@@ -161,18 +171,18 @@ for rx = ["R1","R2"] %reactions to plot
     scatter(xcoordl,ycoord,[100],color,'filled','s')
     for i = 1:length(ycoord)
         switch color(i)
-            case 1
+            case 10
                 temp = 'red';
             case 0
                 temp = 'black';
-            case .5
-                temp = 'cyan';
+            case 5
+                temp = 'blue';
         end
         line([xcoordl(i),xcoordu(i)],[ycoord(i),ycoord(i)],'color',temp) %Draw connecting lines
     end
     j = j +1;
     xlabel('Units of Flux Through Reaction')
-    ylabel('Required Flux Through Reaction')%label
+    ylabel('Required Flux Through the Objective Function')%label
     xlim([0,2])  %set xaxis limits
     temp = fva_pct_result.rxn_name(k);
     t = title(string(temp(1)));
@@ -220,12 +230,12 @@ for rx = ["R1","R2"] %reactions to plot
     scatter(xcoordl,ycoord,[100],color,'filled','s')
     for i = 1:length(ycoord)
         switch color(i)
-            case 1
+            case 10
                 temp = 'red';
             case 0
                 temp = 'black';
-            case .5
-                temp = 'cyan';
+            case 5
+                temp = 'blue';
         end
         line([xcoordl(i),xcoordu(i)],[ycoord(i),ycoord(i)],'color',temp) %Draw connecting lines
     end
@@ -276,15 +286,21 @@ for rx = 1:length(rxnlist) %reactions to plot
             case 5
                 temp = 'blue';
         end
-        line([xcoordl(i),xcoordu(i)],[ycoord(i),ycoord(i)],'color',temp) %Draw connecting lines
+        line([xcoordl(i),xcoordu(i)],[ycoord(i),ycoord(i)],'Color',temp) %Draw connecting lines
     end
     j = j +1;
     xlim([min(xcoordl),max(xcoordu)])
     ylim([0,max(ycoord)])
-    temp = fva_inc_result.rxn_name(k);
-    t = title(string(temp(1)));
+    temp = fva_inc_result.rxn_name(k);        
+    a = get(gca,'XTickLabel');
+    set(gca,'XTickLabel',a,'FontName','Times','fontsize',4)
+    a = get(gca,'YTickLabel');
+    set(gca,'YTickLabel',a,'FontName','Times','fontsize',4)
+    xlabel('Units of Flux Through Reaction','FontSize',6)
+    ylabel('Required # of ATP produced','FontSize',6)%label
+    t = title(string(temp(1)),'FontWeight','normal','FontSize',8);
     pos = get(t,'Position');
-    pos(2) = pos(2) + .5;
+    pos(2) = pos(2) ;
     set(t,'Position',pos);
     grid on;
 end

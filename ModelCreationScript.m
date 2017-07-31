@@ -3,8 +3,6 @@
 %as a .mat file that is used in the FigureCreationScript.m program that
 %creates the figures associated with this model.
 
-
-
 %initCobraToolbox  %uncommented the first time running this program
 clear all
 
@@ -23,6 +21,8 @@ R4 = '1 m02[c] + 1 m06[c] -> 1 m01[c] + 1 m09[c]';
 
 %Define reaction IDs for the model
 reactionIDs = {'E1','E2','E3','E4','E5','R1','R2','R3','R4'};
+%define reversibility
+rev = [1,0,1,1,1,0,0,0,0];
 %Define reaction names
 reactionNames = {'glucose exchange','lactate exchange','O2 exchange','H20 exchange','CO2 exchange','glycolysis','respiration','ATP synthase','ATP demand'};
 %Gather formulas
@@ -41,11 +41,12 @@ model.lb = lb';
 model.ub = ub';
 model.grRules = grRule;
 model.genes = geneNames;
+model.rev = rev;
 %add metabolite names
 model.metNames = {'glucose','lactate','O2','H20','CO2','ADP','Pi','ATP','H','H'}';
 %set objective reaction which will be optimized
 model = changeObjective(model,'R4');
-model.c = model.c';
+model.c = model.c;
 %save model
 save('toycon1.mat','model');
 
